@@ -1,0 +1,27 @@
+
+- hosts: all
+  gather_facts: true
+
+- hosts: k8s_controllers
+  name: install k8s
+  become: yes
+  roles:
+   - { role: kubernetes-cluster, kube_type_of_node: master, kube_apiserver_options: [{option: "--insecure-port", value: "8080"}] }
+  tags:
+   - master
+
+- hosts: k8s_workers
+  name: install k8s working  node
+  become: yes
+  roles:
+    - { role: kubernetes-cluster, kube_type_of_node: wn }
+  tags:
+    - worker
+
+- hosts: rancher_server
+  name: install Rancher server
+  become: yes
+  roles: 
+    - { role: rancher-server }
+  tags:
+    - rancher

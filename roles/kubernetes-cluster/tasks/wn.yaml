@@ -1,0 +1,54 @@
+---
+- name: Wait for Kube master
+  wait_for:
+    path: /etc/profile.d/kube.sh
+  delegate_to: "{{ groups['k8s_controllers'][0] }}"
+  #delegate_to: "controller-0"
+
+- firewalld:
+    port: '{{ port_item }}'
+    permanent: true
+    immediate: true
+    state: enabled
+  with_items:
+    - 30000-32767/tcp
+    - 10250/tcp
+    - 6783/tcp
+    - 10255/tcp
+  loop_control:
+    loop_var: port_item
+  when: use_firewalld
+
+- name: reset worker node Configuration
+  command: kubeadm reset
+  when: worker_reset_config
+
+- name: Create join token
+  command: kubeadm token create 
+  delegate_to: "{{ groups['k8s_controllers'][0] }}"
+  run_once: yes
+  #delegate_to: "controller-0"
+  register: token
+
+- name: force all notified handlers to run at this point, not waiting for normal sync points
+  meta: flush_handlers
+
+- name: Add node to kube cluster
+  command: kubeadm join --token {{token.stdout}} {{kube_server}}:6443 --discovery-token-unsafe-skip-ca-verification creates=/etc/kubernetes/kubelet.conf
+
+
+- name: Delete join token
+  command: kubeadm token delete  {{token.stdout}}
+  delegate_to: "{{ groups['k8s_controllers'][0] }}"
+  #delegate_to: "controller-0"
+  run_once: yes
+  register: token
+
+- name: Add KUBELET_EXTRA_ARGS
+  lineinfile:
+    dest: /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+    line: 'Environment="KUBELET_EXTRA_ARGS={{kubelet_extra_args}}"'
+    regexp: '^Environment="KUBELET_EXTRA_ARGS'
+    insertafter: '\[Service\]'
+  notify: restart kubelet
+  when: kubelet_extra_args != ''

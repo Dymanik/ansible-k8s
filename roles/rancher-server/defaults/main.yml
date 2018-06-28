@@ -1,0 +1,5 @@
+rancher_host_path: /var/lib/rancher
+
+rancher_https_port: 8443
+
+rancher_version: latest

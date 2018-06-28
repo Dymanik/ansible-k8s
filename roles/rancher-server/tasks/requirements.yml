@@ -1,0 +1,16 @@
+---
+
+
+- name: install epel repo
+  yum:
+    name: epel-release
+    state: present
+
+- name: install pip
+  yum:
+    name: python-pip
+    state: present
+
+- name: python dependecies
+  pip:
+    name: docker-py

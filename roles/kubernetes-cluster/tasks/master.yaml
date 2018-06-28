@@ -1,0 +1,110 @@
+---
+- name: set flannel cidr
+  set_fact: kube_pod_network_cidr='10.244.0.0/16'
+  when: kube_network == 'flannel'
+
+- name: set calico cidr
+  set_fact: kube_pod_network_cidr='192.168.0.0/16'
+  when: kube_network == 'calico'
+
+- name: set weave cidr
+  set_fact: kube_pod_network_cidr='10.32.0.0/12'
+  when: kube_network == 'weave'
+
+- name: force handlers
+  meta: flush_handlers
+
+- firewalld:
+    port: '{{ port_item }}'
+    permanent: true
+    immediate: true
+    state: enabled
+  with_items:
+    - 6443/tcp
+    - 2379-2380/tcp
+    - 10250/tcp
+    - 10251/tcp
+    - 10252/tcp
+    - 10255/tcp
+  loop_control:
+    loop_var: port_item
+  when: use_firewalld
+    
+- name: reset admin node Configuration
+  command: kubeadm reset
+  when: admin_reset_config
+
+- name: Kubeadm init
+  command: kubeadm init --skip-token-print --pod-network-cidr {{kube_pod_network_cidr}} --apiserver-advertise-address {{kube_server}} creates=/etc/kubernetes/admin.conf
+
+- lineinfile:
+    dest: /etc/sysctl.d/k8s.conf
+    regexp: '^net.bridge.bridge-nf-call-iptables'
+    line: 'net.bridge.bridge-nf-call-iptables = 1'
+    create: yes
+  notify: sysctl-system
+  when: kube_network == 'flannel' or kube_network == 'kube-router' or kube_network == 'romana'
+
+- block:
+    - copy: src=flannel-net.yml dest=/tmp/flannel-net.yml
+    - command: kubectl apply -f /tmp/flannel-net.yml creates=/etc/cni/net.d/10-flannel.conf
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kube_network == 'flannel'
+
+- block:
+    - copy: src=calico-net.yaml dest=/tmp/calico-net.yaml
+    - command: kubectl apply -f /tmp/calico-net.yaml creates=/var/etcd/calico-data
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kube_network == 'calico'
+
+- block:
+    - copy: src=romana-net.yml dest=/tmp/romana-net.yml
+    - command: kubectl apply -f /tmp/romana-net.yml creates=/var/lib/romana/etcd-db
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kube_network == 'romana'
+
+- block:
+    - copy: src=kuberouter-net.yaml dest=/tmp/kuberouter-net.yaml
+    - command: kubectl apply -f /tmp/kuberouter-net.yaml creates=/etc/cni/net.d/10-kuberouter.conf
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kube_network == 'kube-router'
+
+- block:
+    - shell: "kubectl version | base64 -w 0"
+      register: kubeversion
+    - command: kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version={{kubeversion.stdout}}"  creates=/etc/cni/net.d/10-weave.conf
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kube_network == 'weave'
+
+- include: helm.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  when: kube_install_helm
+
+
+- name: Add Kube API server options
+  lineinfile:
+    dest: /etc/kubernetes/manifests/kube-apiserver.yaml
+    line: '    - {{item.option}}={{item.value}}'
+    regexp: '^    - {{item.option}}='
+    insertafter: '    - kube-apiserver'
+  notify: restart kubeapi
+  with_items: "{{ kube_apiserver_options }}"
+
+- copy:
+    dest: /etc/profile.d/kube.sh
+    content: "export KUBECONFIG=/etc/kubernetes/admin.conf"
+
+- name: get admin.conf
+  synchronize:
+    src: /etc/kubernetes/admin.conf
+    dest: admin.conf
+    mode: pull
+
+- include: dashboard.yml
+  when: install_dashboard

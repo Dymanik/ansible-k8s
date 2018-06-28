@@ -1,0 +1,35 @@
+---
+kubernetes_version: 1.10.0
+# If true, do not try to install docker or docker-compose with yum
+# set to true to skip this step for testing
+install_skip_docker: False
+# IP address or name of the Kube front node
+#kube_server: "{{ ansible_default_ipv4.address }}"
+kube_server: 10.240.0.10
+# Token
+#kube_token: "kube01.{{ lookup('password', '/tmp/tokenpass chars=ascii_lowercase,digits length=16') }}"
+# POD network cidr
+kube_pod_network_cidr: 10.244.0.0/16
+# Type of network to install: currently supported: flannel, kube-router, romana, calico, weave
+# Only tested with flannel
+kube_network: weave
+# Kubelet extra args
+kubelet_extra_args: ''
+# Kube API server options
+kube_apiserver_options: []
+# Flag to set HELM to be installed
+kube_install_helm: False
+# Set the URL of the HELM package to install
+kube_install_helm_url: 'https://storage.googleapis.com/kubernetes-helm/helm-v2.8.2-linux-amd64.tar.gz'
+# Deploy the Dashboard
+kube_deploy_dashboard: True
+
+#open ports through firewalld
+use_firewalld: False
+
+# Install Dashboard
+install_dashboard: True
+
+admin_reset_config: False
+# Rejoin Worker to cluster
+worker_reset_config: False

@@ -1,0 +1,92 @@
+
+- name: Set up br_netfilter
+  shell: modprobe br_netfilter
+  become: true
+  creates: /proc/sys/net/bridge/bridge-nf-call-iptables
+
+- name: Add br_netfilter to module autoload
+  shell: echo br_netfilter > /etc/modules-load.d/br_netfilter.conf
+  become: true
+  creates: /etc/modules-load.d/br_netfilter.conf
+
+
+- name: adding kubernetes keys
+  rpm_key:
+    key: "{{item}}"
+    state: present
+  with_items:
+    - https://packages.cloud.google.com/yum/doc/yum-key.gpg
+    - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+
+- name: Add repository
+  yum_repository:
+    name: kubernetes
+    description: Kubernetes YUM Repo
+    file: kubernetes
+    baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+    gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+    gpgcheck: 1
+    #repo_gpgcheck: 1
+    enabled: true
+  become: true
+
+- name: Install kubernetes components
+  yum: 'name={{pkg_item}} state=present update_cache=yes'
+  with_items:
+    - kubeadm-{{kubernetes_version}}
+    - kubelet-{{kubernetes_version}}
+    - kubectl-{{kubernetes_version}}
+    - kubernetes-cni
+  loop_control:
+    loop_var: pkg_item
+  become: true
+
+- name: Fix kubelet CGROUP_ARGS
+  replace:
+    path: /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+    regexp: .*KUBELET_CGROUP_ARGS=.*
+    replace: Environment="KUBELET_CGROUP_ARGS=--cgroup-driver=systemd --runtime-cgroups=/systemd/system.slice --kubelet-cgroups=/systemd/system.slice"
+  backup: yes
+  become: true
+
+- lineinfile:
+    path: /etc/sysctl.d/k8s.conf
+    regexp: '^net.bridge.bridge-nf-call-iptables'
+    line: 'net.bridge.bridge-nf-call-iptables = 1'
+    create: yes
+  notify: sysctl-system
+
+- lineinfile:
+    path: /etc/sysctl.d/k8s.conf
+    regexp: '^net.ipv6.conf.all.disable_ipv6'
+    line: 'net.ipv6.conf.all.disable_ipv6 = 1'
+    create: yes
+  notify: sysctl-system
+
+- lineinfile:
+    path: /etc/sysctl.d/k8s.conf
+    regexp: '^net.ipv6.conf.default.disable_ipv6'
+    line: 'net.ipv6.conf.default.disable_ipv6 = 1'
+    create: yes
+  notify: sysctl-system
+  
+- name: Enable kubelet service
+  systemd:
+    name: kubelet
+    enabled: true
+    masked: false
+  become: true
+
+#- name: Add mappings to /etc/hosts
+  #blockinfile:
+    #path: /etc/hosts
+    #block: |
+      #{{ item.ip }} {{ item.name }}
+    #marker: "# {mark} ANSIBLE MANAGED BLOCK {{ item.name }}"
+  #with_items:
+    #- { name: harbor-Scotiabank, ip: 10.235.159.202 }
+    #- { name: k8s-master, ip: 10.0.2.12 }
+    #- { name: worker-node1, ip: 10.0.2.13 }
+
+- name: call handlers
+  meta: flush_handlers

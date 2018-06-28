@@ -1,0 +1,16 @@
+---
+- name: Deploy Dashboard
+  command: kubectl create -f "https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml"
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  ignore_errors: yes
+  when: kube_deploy_dashboard  
+
+- name: create service account and rolebinding
+  copy:
+    #kubeconfig: /etc/kubernetes/admin.conf
+    dest: serviceaccount.yml
+    src: serviceaccount.yml
+
+- name:  create service account and rolebinding
+  command: kubectl apply -f serviceaccount.yml

@@ -1,0 +1,39 @@
+---
+- name: Disable SELinux
+  selinux:
+   state: disabled
+
+- name: Remove swapfile from /etc/fstab
+  mount:
+    name: swap
+    fstype: swap
+    state: absent
+
+- name: add servers to hostfile
+  template:
+    src: hosts
+    dest: /etc/hosts-temp
+  register: cluster_hosts
+
+- name: append hosts
+  shell: cat /etc/hosts-temp >> /etc/hosts
+  when: cluster_hosts.changed
+
+- name: Disable swap
+  command: swapoff -a
+  when: ansible_swaptotal_mb > 0
+
+- include: docker.yml
+  when: install_skip_docker == False
+
+
+- include_tasks: '{{os_item}}'
+  with_first_found:
+    - '{{ansible_distribution}}.yml'
+    - '{{ansible_os_family}}.yml'
+  loop_control:
+    loop_var: os_item
+
+- name: Include "{{kube_type_of_node}}" tasks
+  include: "{{kube_type_of_node}}.yaml"
+

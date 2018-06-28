@@ -1,0 +1,18 @@
+---
+
+- include: requirements.yml
+
+- name: rancher host volume directory
+  file: 
+    path: "{{ rancher_host_path }}"
+    state: directory
+
+- name: run rancher image
+  docker_container:
+      name: rancher
+      image: "rancher/rancher:{{rancher_version}}"
+      restart_policy: unless-stopped
+      volumes:
+          - "{{ rancher_host_path }}:/var/lib/rancher"
+      ports:
+        - "{{ rancher_https_port}}:443"
