@@ -1,5 +1,5 @@
 # ansible-k8s
-Vangrantfile and ansible roles to set up a Kubernetes lab locally
+Vangrantfile and Ansible roles to set up a Kubernetes lab.
 
 # Prerequisites
 
