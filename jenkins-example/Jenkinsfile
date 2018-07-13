@@ -1,0 +1,21 @@
+def label = "mypod-${UUID.randomUUID().toString()}"
+podTemplate(label: label, containers:[
+		containerTemplate(name: 'kubectl', image: 'whitestar/kubectl:latest', ttyEnabled: true, command: 'cat'),
+]) {
+	node(label){
+		container('kubectl') {
+			echo 'hello'
+				stage('checkout'){
+					sh 'wget https://raw.githubusercontent.com/kubernetes/examples/master/guestbook/all-in-one/guestbook-all-in-one.yaml -O test.yaml'
+				}
+			stage('kubernetes-deploy'){
+				withCredentials([kubeconfigContent(credentialsId: 'kubeconfig-test', variable: 'KUBECONFIG_CONTENT')]) {
+					sh '''echo "$KUBECONFIG_CONTENT" > kubeconfig
+						kubectl --kubeconfig=kubeconfig apply -f test.yaml --record
+						'''
+
+				}
+			}
+		}
+	}
+}
