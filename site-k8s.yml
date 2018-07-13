@@ -18,10 +18,3 @@
   tags:
     - worker
 
-- hosts: rancher_server
-  name: install Rancher server
-  become: yes
-  roles: 
-    - { role: rancher-server }
-  tags:
-    - rancher
