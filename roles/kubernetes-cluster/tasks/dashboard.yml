@@ -1,6 +1,6 @@
 ---
 - name: Deploy Dashboard
-  command: kubectl create -f "https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml"
+  command: kubectl apply -f "https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml"
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   ignore_errors: yes
